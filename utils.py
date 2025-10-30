@@ -10,7 +10,6 @@ sns.set(style="whitegrid", palette="pastel")
 
 # --------- Feature Assessment and Visualization ---------
 
-
 # 1. Numerical Features Statistics
 def numerical_feature_stats(feature_name, df):
     '''
@@ -93,7 +92,6 @@ def categorical_feature_desc(feature_name, df):
 
     return descriptions
 
-
 def rare_categories(feature_name, df, threshold=0.01):
     '''
     identify rare categories in a categorical feature based on a frequency threshold.
@@ -114,7 +112,9 @@ def rare_categories(feature_name, df, threshold=0.01):
     return rare_categories, rare_categories_perc
     
 
-def render_numerical_feature(feature_name, df, bins=30, bar_width=3):
+
+# 3. Rendering Functions
+def render_numerical_feature(feature_name, df, target_col, bins=30, bar_width=3):
     '''
     
     '''
@@ -124,13 +124,33 @@ def render_numerical_feature(feature_name, df, bins=30, bar_width=3):
     stats_df = pd.DataFrame(stats.items(), columns=["Metric", "Value"])
     stats_df["Value"] = stats_df["Value"].apply(lambda x: f"{x:,.4f}" if isinstance(x, (int, float)) else x)
 
-    fig, (ax_table, ax_hist, ax3_box) = plt.subplots(1, 3, figsize=(15, 4))
+    target_filtered = df[df[target_col].isin(["Dropout", "Graduate"])]
+
+
+    fig, (ax_table, ax_hist, ax_box, ax_target) = plt.subplots(1, 4, figsize=(20, 4))
+
+
+    # Feature vs Taregt Boxplot
+    sns.boxplot(
+        data=target_filtered,
+        x=target_col,
+        y=feature_name,
+        ax=ax_target,
+        palette=["#efa3a0", '#CAE08DB4']
+    )
+
+    ax_target.set_title(f"{feature_name} vs. Target", fontsize=13, pad=10)
+    ax_target.set_xlabel("Target", fontsize=11)
+    ax_target.set_ylabel(feature_name, fontsize=11)
 
     # Outliers Boxplot
-    sns.boxplot(x=feature, ax=ax3_box, color="#A9BD70", orient="h")
-    ax3_box.axvline(lower_bound, color='red', linestyle='--')
-    ax3_box.axvline(upper_bound, color='red', linestyle='--')
-    ax3_box.set_title(f"{feature_name} Boxplot (IQR Outliers)")
+    sns.boxplot(y=feature, ax=ax_box, color="#93C5D4", orient="v")
+    ax_box.axhline(lower_bound, color='red', linestyle='--')
+    ax_box.axhline(upper_bound, color='red', linestyle='--')
+    ax_box.set_title(f"{feature_name} Boxplot (IQR Outliers)")
+    ax_box.set_ylabel(feature_name)
+    ax_box.set_xlabel("")
+
 
     # Histogram -- Feature Distribution
     sns.histplot(feature, bins=bins, kde=True, ax=ax_hist, shrink=bar_width, color="#93C5D4")
@@ -158,68 +178,74 @@ def render_numerical_feature(feature_name, df, bins=30, bar_width=3):
     plt.tight_layout()
     plt.show()
 
-
-
-
-def explore_numerical_feature(feature_name, df, bins=30, bar_width=3):
-    '''
-    '''
-    stats = numerical_feature_stats(feature_name, df)
+def render_categorical_feature(feature_name, df, target_col):
+    
+    descriptions = categorical_feature_desc(feature_name, df)
     feature = df[feature_name].dropna()
-    stats_df = pd.DataFrame(stats.items(), columns=["Metric", "Value"])
-    stats_df["Value"] = stats_df["Value"].apply(lambda x: f"{x:,.4f}" if isinstance(x, (int, float)) else x)
 
-    fig, (ax_table, ax_plot) = plt.subplots(1, 2, figsize=(12, 4))
-
-    # histogram plot
-    sns.histplot(feature, bins=bins, kde=True, ax=ax_plot, shrink=bar_width, color="#93C5D4")
-    ax_plot.set_title(f"{feature_name} Distribution")
-    ax_plot.set_xlabel(feature_name)
-    ax_plot.set_ylabel("Count")
-
-    # stats table
-    ax_table.axis("off")
-    ax_table.text(0.02, 1.05, "Summary statistics", fontsize=11, weight="bold", family="DejaVu Sans")
-    y_start = 0.95
-    y_step = 1.0 / (len(stats_df) + 2)
-    font_family = "DejaVu Sans"
-    ax_table.text(0.02, y_start, "Metric", weight="bold", fontsize=10, family=font_family)
-    ax_table.text(0.98, y_start, "Value", weight="bold", fontsize=10, family=font_family, ha="right")
-
-    y = y_start - y_step
-    for i, (metric, value) in enumerate(stats_df.values):
-        y_mid = y - (y_step / 2)
-        ax_table.text(0.02, y_mid, metric, fontsize=9.5, family=font_family, color="#333", va="center")
-        ax_table.text(0.98, y_mid, value, fontsize=9.5, family=font_family, color="#333", ha="right", va="center")
-        ax_table.plot([0.02, 0.98], [y - y_step, y - y_step], color="#D3D3D3", lw=0.6)
-        y -= y_step
-
-    plt.tight_layout()
-    plt.show()
-
-
-def explore_categorical_feature(feature_name, df, top_k=15, bar_width=0.95):
-    """
-    Summary table (left) + count plot (right) for categorical features.
-    top_k limits the number of bars (most frequent first).
-    """
-    feature = df[feature_name]
-
-    # --- stats (reuse your style) ---
-    desc = categorical_feature_desc(feature_name, df)  # you already wrote this
-    # add mode frequency %
     vc = feature.value_counts(dropna=True)
     if not vc.empty:
-        desc['mode_freq(%)'] = (vc.iloc[0] / len(feature)) * 100
-    stats_df = pd.DataFrame(list(desc.items()), columns=["Metric", "Value"])
+        descriptions['mode_freq(%)'] = (vc.iloc[0] / len(feature)) * 100
+    stats_df = pd.DataFrame(list(descriptions.items()), columns=["Metric", "Value"])
     stats_df["Value"] = stats_df["Value"].apply(
         lambda x: f"{x:,.4f}" if isinstance(x, (int, float, np.integer, np.floating)) else str(x)
     )
 
-    # --- layout ---
-    fig, (ax_table, ax_plot) = plt.subplots(1, 2, figsize=(12, 4))
 
-    # --- table (same minimalist style) ---
+    target_filtered = df[df[target_col].isin(["Dropout", "Graduate"])]
+
+    fig, (ax_table, ax_freq, ax_und, ax_target) = plt.subplots(1, 4, figsize=(20, 4))
+
+    # Feature vs Target Undirected Barplot
+    top_n = 10
+    if target_filtered[feature_name].nunique() > top_n:
+        top_categories = target_filtered[feature_name].value_counts().index[:top_n].tolist()
+        plot_data = target_filtered[target_filtered[feature_name].isin(top_categories)].copy()
+        order = top_categories
+        title = f"Dropout/Graduate Proportion by {feature_name} (Top {top_n})"
+    else:
+        plot_data = target_filtered.copy()
+        order = list(plot_data[feature_name].value_counts().index)
+        title = f"Dropout/Graduate Proportion by {feature_name}"
+
+    # Ensure categorical order is respected
+    plot_data[feature_name] = pd.Categorical(plot_data[feature_name], categories=order, ordered=True)
+
+    sns.histplot(
+        data=plot_data,
+        y=feature_name,
+        hue=target_col,
+        multiple="fill",            # 100% stacked bars
+        palette=['#efa3a0', '#CAE08DB4'],
+        shrink=0.8,
+        ax=ax_target
+    )
+    ax_target.set_title(title, fontsize=13, pad=10)
+    ax_target.set_xlabel("Proportion", fontsize=11)
+    ax_target.set_ylabel(feature_name, fontsize=11)
+    ax_target.legend(title="Outcome", bbox_to_anchor=(1.05, 1), loc="upper left")
+
+    # TO DO
+
+
+#### if we want to add something else here
+
+
+
+    # Frequency bar chart
+    freq_data = feature.value_counts(normalize=False).sort_values(ascending=False)
+    sns.barplot(
+        x=freq_data.index,
+        y=freq_data.values,
+        ax=ax_freq,
+        color="#DDBFE2"
+    )
+    ax_freq.set_title(f"{feature_name} Frequency", fontsize=13, pad=10)
+    ax_freq.set_xlabel(feature_name, fontsize=11)
+    ax_freq.set_ylabel("Count", fontsize=11)
+    ax_freq.set_xticklabels(ax_freq.get_xticklabels(), rotation=45, ha="right")
+
+    # Descriptions table
     ax_table.axis("off")
     ax_table.text(0.02, 1.05, "Summary statistics", fontsize=11, weight="bold", family="DejaVu Sans")
 
@@ -237,103 +263,11 @@ def explore_categorical_feature(feature_name, df, top_k=15, bar_width=0.95):
         ax_table.plot([0.02, 0.98], [y - y_step, y - y_step], color="#D3D3D3", lw=0.6)
         y -= y_step
 
-    # --- count plot (right) ---
-    # top_k categories by frequency; cast to str so integer codes label nicely
-    vc = vc.head(top_k)
-    sns.barplot(x=vc.index.astype(str), y=vc.values, ax=ax_plot, color="#CEB5DCFF")
-    ax_plot.set_title(f"{feature_name} Distribution")
-    ax_plot.set_xlabel(feature_name)
-    ax_plot.set_ylabel("Count")
-    ax_plot.tick_params(axis='x', rotation=30)
-    for bar in ax_plot.patches:
-        bar.set_width(bar_width)
-
     plt.tight_layout()
     plt.show()
 
-
-
-def explore_features_grid(df, numerical_features_list=None, categorical_features_list=None, bins=30, bar_width=1.2, n_cols=2, top_k_cats=15):
-    """
-    Render multiple feature explorers (numeric AND categorical) into a single grid, 2 per row.
-    Numeric -> explore_numerical_feature()
-    Categorical -> explore_categorical_feature()
-    """
-    numerical_features_list = numerical_features_list or []
-    categorical_features_list = categorical_features_list or []
-
-    # Build combined plan as (name, kind)
-    plan = [(f, "num") for f in numerical_features_list] + [(f, "cat") for f in categorical_features_list]
-    total = len(plan)
-    if total == 0:
-        print("No features provided.")
-        return
-
-    n_rows = int(np.ceil(total / n_cols))
-    images, titles = [], []
-
-    # --- Temporarily suppress plt.show() while capturing ---
-    original_show = plt.show
-    plt.show = lambda *args, **kwargs: None
-
-    try:
-        for feat, kind in plan:
-            if kind == "num":
-                explore_numerical_feature(feat, df, bins=bins, bar_width=bar_width)
-            else:
-                explore_categorical_feature(feat, df, top_k=top_k_cats, bar_width=0.95)
-
-            fig_temp = plt.gcf()
-            buf = BytesIO()
-            fig_temp.savefig(buf, format="png", bbox_inches="tight", dpi=150)
-            buf.seek(0)
-            images.append(plt.imread(buf))
-            titles.append(feat)
-            buf.close()
-            plt.close(fig_temp)
-    finally:
-        # restore regardless of errors
-        plt.show = original_show
-
-    # --- Compose final grid ---
-    fig, axes = plt.subplots(n_rows, n_cols, figsize=(n_cols * 7, n_rows * 5))
-    axes = np.atleast_2d(axes).flatten()
-
-    for i, (img, title) in enumerate(zip(images, titles)):
-        ax = axes[i]
-        ax.imshow(img)
-        ax.axis("off")
-        ax.set_title(title, fontsize=11, weight="bold", pad=10)
-
-    for j in range(i + 1, len(axes)):
-        axes[j].axis("off")
-
-    fig.tight_layout()
-    plt.show()
-
-
-
-def plot_numeric_outliers(feature_name, df, multiplier=1.5, bins=30):
-    """
-    Visualize numeric outliers using histogram + boxplot with IQR boundaries.
-    """
-    outliers, outliers_perc, lower_bound, upper_bound = detect_outliers(feature_name, df, multiplier)
-    feature_data = df[feature_name].dropna()
-
-    fig, axes = plt.subplots(1, 2, figsize=(12, 4))
-    
-    # Histogram
-    sns.histplot(feature_data, bins=bins, kde=True, ax=axes[0], color="#5A9BD4")
-    axes[0].axvline(lower_bound, color='red', linestyle='--', label='Lower Bound')
-    axes[0].axvline(upper_bound, color='red', linestyle='--', label='Upper Bound')
-    axes[0].set_title(f"{feature_name} Distribution\nOutliers: {outliers_perc:.2f}%")
-    axes[0].legend()
-
-    # Boxplot
-    sns.boxplot(x=feature_data, ax=axes[1], color="#CAD7AC", orient="h")
-    axes[1].axvline(lower_bound, color='red', linestyle='--')
-    axes[1].axvline(upper_bound, color='red', linestyle='--')
-    axes[1].set_title(f"{feature_name} Boxplot (IQR Outliers)")
-
-    plt.tight_layout()
-    plt.show()
+def visualize_features_cards(df, numerical_features_list, categorical_features_list, target_col='Target'):
+    for feature in numerical_features_list:
+        render_numerical_feature(feature, df, target_col)
+    for feature in categorical_features_list:
+        render_categorical_feature(feature, df, target_col)
