@@ -9,16 +9,18 @@ sns.set(style="whitegrid", palette="pastel")
 
 
 # --------- Feature Assessment and Visualization ---------
+
+
+# 1. Numerical Features Statistics
 def numerical_feature_stats(feature_name, df):
     '''
-    compute statistics for a given feature in the dataframe.
+    compute statistics for a given feature in the dataframe: total count, distinct count (%), missing count (%), memory size, mean, std, coefficient of variation, min, 25%, median(50%), 75%, max.
     args:
         feature_name (str)
         df (pd.DataFrame)
     returns:
         dict: dictionary containing various statistics about the feature.
     '''
-
     feature = df[feature_name]
     stats = {}
     stats['total_count'] = len(feature)
@@ -44,8 +46,39 @@ def numerical_feature_stats(feature_name, df):
     
     return stats
 
+def detect_outliers(feature_name, df, multiplier=1.5):
+    '''
+    detect outliers in numerical features using the IQR rule --> every point outside the Q1 - 1.5*IQR and Q3 + 1.5*IQR is considered an outlier.
+    args:
+        feature_name (str)
+        df (pd.DataFrame)
+        multiplier (float): multiplier for the IQR to define outlier boundaries (1.5 from documentation)
+    returns:
+        numerical_outliers (pd.Series): series containing the outlier values.
+        outliers_perc (float): percentage of outliers in the feature.
+        lower_bound (float): lower bound for outlier detection. (for plotting the boxplot)
+        upper_bound (float): upper bound for outlier detection.(for plotting the boxplot)
+    '''
+    feature_data = df[feature_name].dropna()
+    Q1, Q3 = np.percentile(feature_data, [25, 75])
+    IQR = Q3 - Q1
+    lower_bound = Q1 - (multiplier * IQR)
+    upper_bound = Q3 + (multiplier * IQR)
+    numerical_outliers = feature_data[(feature_data < lower_bound) | (feature_data > upper_bound)]
+    outliers_perc = (len(numerical_outliers) / len(feature_data)) * 100
+    return numerical_outliers, outliers_perc, lower_bound, upper_bound
 
+
+# 2. Categorical Features Description
 def categorical_feature_desc(feature_name, df):
+    '''
+    describes a given categorical feature: total count, distinct categories, missing count (%), most frequent category, memory size.
+    args:
+        feature_name (str)
+        df (pd.DataFrame)
+    returns:
+        dict: dictionary containing various descriptions about the categorical feature.
+    '''
     feature = df[feature_name]
     descriptions = {}
     descriptions['total_count'] = len(feature)
@@ -59,8 +92,74 @@ def categorical_feature_desc(feature_name, df):
     descriptions['memory_size(bytes)'] = memory_size
 
     return descriptions
+
+
+def rare_categories(feature_name, df, threshold=0.01):
+    '''
+    identify rare categories in a categorical feature based on a frequency threshold.
+    args:
+        feature_name (str)
+        df (pd.DataFrame)
+        threshold (float): frequency threshold to consider a category as rare (set to 1%)
+    returns:
+        rare_categories (pd.Series): series containing the rare categories and their frequencies.
+        rare_categories_perc (float): percentage of rare categories among all distinct categories.
+    '''
+    feature_data = df[feature_name].dropna()
+    value_counts = feature_data.value_counts(normalize=True)
+    rare_categories = value_counts[value_counts < threshold]
+    rare_categories_perc = len(rare_categories) / len(value_counts) * 100
+    # print(rare_categories)
+    # print(len(rare_categories))
+    return rare_categories, rare_categories_perc
     
+
+def render_numerical_feature(feature_name, df, bins=30, bar_width=3):
+    '''
     
+    '''
+    stats = numerical_feature_stats(feature_name, df)
+    numerical_outliers, outliers_perc, lower_bound, upper_bound = detect_outliers(feature_name, df)
+    feature = df[feature_name].dropna()
+    stats_df = pd.DataFrame(stats.items(), columns=["Metric", "Value"])
+    stats_df["Value"] = stats_df["Value"].apply(lambda x: f"{x:,.4f}" if isinstance(x, (int, float)) else x)
+
+    fig, (ax_table, ax_hist, ax3_box) = plt.subplots(1, 3, figsize=(15, 4))
+
+    # Outliers Boxplot
+    sns.boxplot(x=feature, ax=ax3_box, color="#A9BD70", orient="h")
+    ax3_box.axvline(lower_bound, color='red', linestyle='--')
+    ax3_box.axvline(upper_bound, color='red', linestyle='--')
+    ax3_box.set_title(f"{feature_name} Boxplot (IQR Outliers)")
+
+    # Histogram -- Feature Distribution
+    sns.histplot(feature, bins=bins, kde=True, ax=ax_hist, shrink=bar_width, color="#93C5D4")
+    ax_hist.set_title(f"{feature_name} Distribution")
+    ax_hist.set_xlabel(feature_name)
+    ax_hist.set_ylabel("Count")
+
+    # stats table
+    ax_table.axis("off")
+    ax_table.text(0.02, 1.05, "Summary statistics", fontsize=11, weight="bold", family="DejaVu Sans")
+    y_start = 0.95
+    y_step = 1.0 / (len(stats_df) + 2)
+    font_family = "DejaVu Sans"
+    ax_table.text(0.02, y_start, "Metric", weight="bold", fontsize=10, family=font_family)
+    ax_table.text(0.98, y_start, "Value", weight="bold", fontsize=10, family=font_family, ha="right")
+
+    y = y_start - y_step
+    for i, (metric, value) in enumerate(stats_df.values):
+        y_mid = y - (y_step / 2)
+        ax_table.text(0.02, y_mid, metric, fontsize=9.5, family=font_family, color="#333", va="center")
+        ax_table.text(0.98, y_mid, value, fontsize=9.5, family=font_family, color="#333", ha="right", va="center")
+        ax_table.plot([0.02, 0.98], [y - y_step, y - y_step], color="#D3D3D3", lw=0.6)
+        y -= y_step
+
+    plt.tight_layout()
+    plt.show()
+
+
+
 
 def explore_numerical_feature(feature_name, df, bins=30, bar_width=3):
     '''
@@ -153,60 +252,11 @@ def explore_categorical_feature(feature_name, df, top_k=15, bar_width=0.95):
     plt.show()
 
 
-# def explore_features_grid(df, numerical_features_list, categorical_features_list, bins=30, bar_width=1.2, n_cols=3):
-#     """
-#     Runs explore_feature() for each column and arranges all outputs
-#     in a single grid (3 per row) — without modifying explore_feature().
-#     """
-#     total = len(numerical_features_list)
-#     n_rows = int(np.ceil(total / n_cols))
-#     images = []
 
-#     # --- Temporarily suppress plt.show() ---
-#     original_show = plt.show
-#     plt.show = lambda *args, **kwargs: None
-
-#     for feature in numerical_features_list:
-#         explore_feature(feature, df, bins=bins, bar_width=bar_width)
-#         fig_temp = plt.gcf()
-
-#         buf = BytesIO()
-#         fig_temp.savefig(buf, format="png", bbox_inches="tight", dpi=150)
-#         buf.seek(0)
-#         img = plt.imread(buf)
-#         buf.close()
-#         images.append(img)
-
-#         plt.close(fig_temp)
-
-#     # Restore normal plt.show()
-#     plt.show = original_show
-
-#     # --- Display all captured plots together ---
-#     fig, axes = plt.subplots(n_rows, n_cols, figsize=(n_cols * 7, n_rows * 5))
-#     axes = np.atleast_2d(axes).flatten()
-
-#     for i, img in enumerate(images):
-#         ax = axes[i]
-#         ax.imshow(img)
-#         ax.axis("off")
-#         ax.set_title(numerical_features_list[i], fontsize=11, weight="bold", pad=10)
-
-#     for j in range(i + 1, len(axes)):
-#         axes[j].axis("off")
-
-#     fig.tight_layout()
-#     plt.show()
-
-
-def explore_features_grid(df,
-                          numerical_features_list=None,
-                          categorical_features_list=None,
-                          bins=30, bar_width=1.2, n_cols=3,
-                          top_k_cats=15):
+def explore_features_grid(df, numerical_features_list=None, categorical_features_list=None, bins=30, bar_width=1.2, n_cols=2, top_k_cats=15):
     """
-    Render multiple feature explorers (numeric AND categorical) into a single grid, 3 per row.
-    Numeric -> explore_feature()
+    Render multiple feature explorers (numeric AND categorical) into a single grid, 2 per row.
+    Numeric -> explore_numerical_feature()
     Categorical -> explore_categorical_feature()
     """
     numerical_features_list = numerical_features_list or []
@@ -259,4 +309,31 @@ def explore_features_grid(df,
         axes[j].axis("off")
 
     fig.tight_layout()
+    plt.show()
+
+
+
+def plot_numeric_outliers(feature_name, df, multiplier=1.5, bins=30):
+    """
+    Visualize numeric outliers using histogram + boxplot with IQR boundaries.
+    """
+    outliers, outliers_perc, lower_bound, upper_bound = detect_outliers(feature_name, df, multiplier)
+    feature_data = df[feature_name].dropna()
+
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+    
+    # Histogram
+    sns.histplot(feature_data, bins=bins, kde=True, ax=axes[0], color="#5A9BD4")
+    axes[0].axvline(lower_bound, color='red', linestyle='--', label='Lower Bound')
+    axes[0].axvline(upper_bound, color='red', linestyle='--', label='Upper Bound')
+    axes[0].set_title(f"{feature_name} Distribution\nOutliers: {outliers_perc:.2f}%")
+    axes[0].legend()
+
+    # Boxplot
+    sns.boxplot(x=feature_data, ax=axes[1], color="#CAD7AC", orient="h")
+    axes[1].axvline(lower_bound, color='red', linestyle='--')
+    axes[1].axvline(upper_bound, color='red', linestyle='--')
+    axes[1].set_title(f"{feature_name} Boxplot (IQR Outliers)")
+
+    plt.tight_layout()
     plt.show()
