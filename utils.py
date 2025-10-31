@@ -116,7 +116,11 @@ def rare_categories(feature_name, df, threshold=0.01):
 # 3. Rendering Functions
 def render_numerical_feature(feature_name, df, target_col, bins=30, bar_width=3):
     '''
-    
+    render visualizations for numerical features. numerical_feature_card includes:
+        - summary statistics table
+        - histogram of feature distribution
+        - boxplot with outliers indicated
+        - boxplot of feature vs target variable
     '''
     stats = numerical_feature_stats(feature_name, df)
     numerical_outliers, outliers_perc, lower_bound, upper_bound = detect_outliers(feature_name, df)
@@ -179,7 +183,12 @@ def render_numerical_feature(feature_name, df, target_col, bins=30, bar_width=3)
     plt.show()
 
 def render_categorical_feature(feature_name, df, target_col):
-    
+    '''
+    render visualizations for categorical features. categorical_feature_card includes:
+        - summary descriptions table
+        - frequency bar chart
+        - undirected barplot of feature vs target variable
+    '''
     descriptions = categorical_feature_desc(feature_name, df)
     feature = df[feature_name].dropna()
 
@@ -267,6 +276,9 @@ def render_categorical_feature(feature_name, df, target_col):
     plt.show()
 
 def visualize_features_cards(df, numerical_features_list, categorical_features_list, target_col='Target'):
+    '''
+    visualize all features in the dataframe using their respective rendering functions.
+    '''
     for feature in numerical_features_list:
         render_numerical_feature(feature, df, target_col)
     for feature in categorical_features_list:
